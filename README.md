@@ -59,8 +59,8 @@ Live: https://curtisalexander.github.io/gc/
 
 The math modules (`parser`, `graphing`, `calculator`, `statistics`, `matrix`,
 `format`) are all pure TypeScript — no DOM access. That's what makes them easy
-to test in Node, and what would let them be reused outside the browser if you
-ever wanted to. `main.ts` is the only file that touches the DOM.
+to test in Node, and what would let them be reused outside the browser if 
+ever desired. `main.ts` is the only file that touches the DOM.
 
 ## Development
 
