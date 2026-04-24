@@ -43,12 +43,17 @@ export class Calculator {
     };
   }
 
+  // Shift is strictly one-shot — any keypress (number, operator, function,
+  // ANS, or edit) clears it. Otherwise shift silently affects the key after
+  // the one the user intended.
   pressNum(n: string): void {
     this.expr += n;
+    this.shift = false;
   }
 
   pressOp(op: string): void {
     this.expr += op;
+    this.shift = false;
   }
 
   // For function keys. If shift is on and we have an alternate, use that.
@@ -78,16 +83,19 @@ export class Calculator {
   pressAns(): void {
     // Wrap in parens so that ANS interacts safely with surrounding operators.
     this.expr += `(${this.ans})`;
+    this.shift = false;
   }
 
   clear(): void {
     this.expr = '';
     this.result = '0';
     this.history = '';
+    this.shift = false;
   }
 
   del(): void {
     this.expr = this.expr.slice(0, -1);
+    this.shift = false;
   }
 
   toggleShift(): void { this.shift = !this.shift; }

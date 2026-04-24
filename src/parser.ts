@@ -34,6 +34,11 @@ function insertImplicitMul(e: string): string {
   e = e.replace(/(\d)(\()/g, '$1*$2');
   e = e.replace(/(\))(\d)/g, '$1*$2');
   e = e.replace(/(\))(\()/g, '$1*$2');
+  // Chained short-name case: `2pie`, `2ex`, `2xx`, `2xpi` — digit + pi/e/x
+  // immediately followed by another letter. The `\b`-anchored rule below
+  // won't match here because the trailing letter is a word char; split on
+  // both sides so the follow-on rules can pick up the tail.
+  e = e.replace(/(\d)(pi|e|x)(?=[a-zA-Z])/g, '$1*$2*');
   e = e.replace(new RegExp(`(\\d)(pi|e|x|${FUNC_RE})\\b`, 'g'), '$1*$2');
   e = e.replace(new RegExp(`\\)(pi|e|x|${FUNC_RE})\\b`, 'g'), ')*$1');
   e = e.replace(new RegExp(`\\b(pi|x)(pi|e|x|${FUNC_RE}|\\d|\\()`, 'g'), '$1*$2');
@@ -187,8 +192,9 @@ export function perm(n: number, r: number): number {
   return factorial(n) / factorial(n - r);
 }
 
-// Resolve all factorials in the string. Handles both `5!` and `(2+3)!` forms,
-// recursing through the supplied evalArg for parenthesized sub-expressions.
+// Resolve all factorials in the string. Handles `5!`, `pi!`, `(2+3)!`, and
+// `sin(x)!` forms, recursing through the supplied evalArg for expressions
+// inside parens (or a preceding function-call identifier).
 function resolveFactorials(e: string, evalArg: (s: string) => number): string {
   // Reject `!!` rather than silently computing (n!)! — that produces wildly
   // wrong-looking huge numbers (5!! → 120! ≈ 6.7e198) instead of the math
@@ -197,9 +203,12 @@ function resolveFactorials(e: string, evalArg: (s: string) => number): string {
   let changed = true;
   while (changed) {
     changed = false;
-    const newE = e.replace(/(\d+(?:\.\d+)?)\s*!/g, (_, n) => {
+    // Bare numbers and constants. pi!/e! resolve to factorial(non-integer) = NaN,
+    // which surfaces as Error rather than a cryptic JS SyntaxError.
+    const newE = e.replace(/(?:\b(pi|e)\b|(\d+(?:\.\d+)?))\s*!/g, (_, name, num) => {
       changed = true;
-      return String(factorial(+n));
+      const v = name === 'pi' ? Math.PI : name === 'e' ? Math.E : +num;
+      return String(factorial(v));
     });
     e = newE;
     const parenMatch = e.match(/\)\s*!/);
@@ -215,10 +224,16 @@ function resolveFactorials(e: string, evalArg: (s: string) => number): string {
         openIdx--;
       }
       if (depth === 0) {
-        const inner = e.substring(openIdx + 1, closeIdx);
+        // Absorb a preceding function-call identifier so `sin(pi)!` becomes
+        // factorial(sin(π)) rather than factorial(π) with sin left dangling.
+        let callStart = openIdx;
+        let ns = openIdx - 1;
+        while (ns >= 0 && /[a-zA-Z_]/.test(e[ns]!)) ns--;
+        if (ns + 1 < openIdx) callStart = ns + 1;
+        const inner = e.substring(callStart, closeIdx + 1);
         try {
           const val = evalArg(inner);
-          e = e.substring(0, openIdx) + String(factorial(val)) + e.substring(bangIdx + 1);
+          e = e.substring(0, callStart) + String(factorial(val)) + e.substring(bangIdx + 1);
           changed = true;
         } catch { /* leave it; later eval will throw */ }
       }
@@ -306,7 +321,7 @@ export function evalCalcExpr(expr: string, opts: CalcOpts = {}): number {
     atan: deg ? '__ATAND__(' : 'Math.atan(',
     sin: deg ? '__SIND__(' : 'Math.sin(',
     cos: deg ? '__COSD__(' : 'Math.cos(',
-    tan: deg ? '__TAND__(' : 'Math.tan(',
+    tan: deg ? '__TAND__(' : '__TANR__(',
   });
   e = e.replace(/%/g, '/100');
   e = restore(e);
@@ -314,7 +329,8 @@ export function evalCalcExpr(expr: string, opts: CalcOpts = {}): number {
     Math,
     __SIND__: (x: number) => Math.sin(x * Math.PI / 180),
     __COSD__: (x: number) => Math.cos(x * Math.PI / 180),
-    __TAND__: (x: number) => Math.tan(x * Math.PI / 180),
+    __TAND__: (x: number) => safeTan(x * Math.PI / 180),
+    __TANR__: (x: number) => safeTan(x),
     __ASIND__: (x: number) => Math.asin(x) * 180 / Math.PI,
     __ACOSD__: (x: number) => Math.acos(x) * 180 / Math.PI,
     __ATAND__: (x: number) => Math.atan(x) * 180 / Math.PI,
@@ -325,4 +341,13 @@ export function evalCalcExpr(expr: string, opts: CalcOpts = {}): number {
   // Threshold sits well below any "real" intentional small number a user
   // would type into a calculator.
   return Number.isFinite(raw) && Math.abs(raw) < 1e-13 ? 0 : raw;
+}
+
+// tan is undefined at π/2 + kπ. JS's Math.tan returns ~1.6e16 there because
+// it can't represent the exact angle — clamp to NaN so the calculator shows
+// Error rather than a nonsensical huge number.
+function safeTan(rad: number): number {
+  const c = Math.cos(rad);
+  if (Math.abs(c) < 1e-15) return NaN;
+  return Math.sin(rad) / c;
 }

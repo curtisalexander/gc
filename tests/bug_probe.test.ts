@@ -125,3 +125,115 @@ describe('BUG PROBE — double factorial does not silently misbehave', () => {
     expect(() => evalCalcExpr('5!!')).toThrow();
   });
 });
+
+describe('BUG PROBE — factorial absorbs preceding function name', () => {
+  // Before the fix, `sin(pi)!` scanned back to the matching `(` and took
+  // factorial of the inner `pi` only, leaving `sin` dangling. The fix
+  // pulls in a preceding identifier so the whole call is factorialized.
+  it('sin(pi)! = factorial(sin(π)) = 1 (radians)', () => {
+    expect(evalCalcExpr('sin(pi)!', { angleMode: 'rad' })).toBe(1);
+  });
+  it('abs(-5)! = factorial(5) = 120', () => {
+    expect(evalCalcExpr('abs(-5)!')).toBe(120);
+  });
+  it('nCr(5,2)! = factorial(10) = 3628800', () => {
+    expect(evalCalcExpr('nCr(5,2)!')).toBe(3628800);
+  });
+  it('(2+3)! still works (no preceding identifier)', () => {
+    expect(evalCalcExpr('(2+3)!')).toBe(120);
+  });
+  it('embedded: 3+sin(pi)! = 3 + 1 = 4', () => {
+    expect(evalCalcExpr('3+sin(pi)!', { angleMode: 'rad' })).toBe(4);
+  });
+});
+
+describe('BUG PROBE — pi! and e! surface as Error, not JS SyntaxError', () => {
+  // factorial of a non-integer is NaN; without the fix these leaked past
+  // the parser because resolveFactorials only recognised `\d!` and `)!`.
+  it('pi! returns NaN', () => {
+    expect(Number.isNaN(evalCalcExpr('pi!'))).toBe(true);
+  });
+  it('e! returns NaN', () => {
+    expect(Number.isNaN(evalCalcExpr('e!'))).toBe(true);
+  });
+});
+
+describe('BUG PROBE — chained implicit multiplication', () => {
+  // Pre-fix, these were raw JS SyntaxErrors because the \b-anchored
+  // implicit-mul rule couldn't match a short name immediately followed
+  // by another letter.
+  it('2pie = 2·π·e', () => {
+    expect(evalCalcExpr('2pie')).toBeCloseTo(2 * Math.PI * Math.E, 9);
+  });
+  it('2ex in graph view = 2·e·x', () => {
+    expect(evalGraphExpr('2ex', 3)).toBeCloseTo(2 * Math.E * 3, 9);
+  });
+  it('2xx in graph view = 2·x·x', () => {
+    expect(evalGraphExpr('2xx', 3)).toBe(18);
+  });
+  it('2epi = 2·e·π', () => {
+    expect(evalCalcExpr('2epi')).toBeCloseTo(2 * Math.E * Math.PI, 9);
+  });
+  it('2xpi in graph view = 2·x·π', () => {
+    expect(evalGraphExpr('2xpi', 3)).toBeCloseTo(6 * Math.PI, 9);
+  });
+});
+
+describe('BUG PROBE — tan at undefined angles', () => {
+  // Math.tan(Math.PI/2) is ~1.6e16 because π/2 can't be represented exactly.
+  // The calculator should treat it as undefined.
+  it('tan(90°) is NaN, not 1.6e16', () => {
+    expect(Number.isNaN(evalCalcExpr('tan(90)', { angleMode: 'deg' }))).toBe(true);
+  });
+  it('tan(270°) is NaN', () => {
+    expect(Number.isNaN(evalCalcExpr('tan(270)', { angleMode: 'deg' }))).toBe(true);
+  });
+  it('tan(pi/2) in radians is NaN', () => {
+    expect(Number.isNaN(evalCalcExpr('tan(pi/2)', { angleMode: 'rad' }))).toBe(true);
+  });
+  it('tan(45°) still works', () => {
+    expect(evalCalcExpr('tan(45)', { angleMode: 'deg' })).toBeCloseTo(1, 9);
+  });
+});
+
+describe('BUG PROBE — findZeros on identically-zero function', () => {
+  it('does not flood the result list with every sample', () => {
+    // Pre-fix this returned ~1000 entries for steps=2000 on y=0.
+    const z = findZeros('0', -10, 10);
+    expect(z.length).toBeLessThanOrEqual(3);
+  });
+  it('still finds isolated exact zero of y=x at x=0', () => {
+    const z = findZeros('x', -10, 10);
+    expect(z.some((v) => Math.abs(v) < 1e-9)).toBe(true);
+  });
+});
+
+describe('BUG PROBE — shift is strictly one-shot across all keys', () => {
+  // Previously only pressFn cleared shift; a stray digit or operator would
+  // leave shift armed and silently affect the NEXT function press.
+  it('pressNum clears shift', () => {
+    const c = new Calculator();
+    c.toggleShift();
+    c.pressNum('5');
+    expect(c.isShift()).toBe(false);
+  });
+  it('pressOp clears shift', () => {
+    const c = new Calculator();
+    c.toggleShift();
+    c.pressOp('+');
+    expect(c.isShift()).toBe(false);
+  });
+  it('pressAns clears shift', () => {
+    const c = new Calculator();
+    c.toggleShift();
+    c.pressAns();
+    expect(c.isShift()).toBe(false);
+  });
+  it('del clears shift', () => {
+    const c = new Calculator();
+    c.pressNum('5');
+    c.toggleShift();
+    c.del();
+    expect(c.isShift()).toBe(false);
+  });
+});

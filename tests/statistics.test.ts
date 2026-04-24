@@ -65,6 +65,10 @@ describe('oneVarStats', () => {
     expect(r.mean).toBe(42);
     expect(r.sampleStdDev).toBe(0);
     expect(r.median).toBe(42);
+    // n=1 collapses quartiles to the single value (no empty halves).
+    expect(r.q1).toBe(42);
+    expect(r.q3).toBe(42);
+    expect(r.iqr).toBe(0);
   });
   it('empty -> null', () => {
     expect(oneVarStats([])).toBeNull();

@@ -83,16 +83,23 @@ export function drawGraph(ctx: CanvasRenderingContext2D, fns: PlotFn[], w: Windo
   ctx.fillStyle = theme.bg;
   ctx.fillRect(0, 0, width, height);
 
-  // Grid
+  // Grid — iterate by integer index so accumulated float error doesn't
+  // silently drop the last tick on ranges whose step doesn't divide evenly.
   ctx.strokeStyle = theme.grid;
   ctx.lineWidth = 1;
   const xStep = niceStep(w.xmax - w.xmin);
   const yStep = niceStep(w.ymax - w.ymin);
-  for (let gx = Math.ceil(w.xmin / xStep) * xStep; gx <= w.xmax; gx += xStep) {
+  const xStartI = Math.ceil(w.xmin / xStep);
+  const xEndI = Math.floor(w.xmax / xStep);
+  for (let i = xStartI; i <= xEndI; i++) {
+    const gx = i * xStep;
     const [cx] = worldToCanvas(gx, 0, w, width, height);
     ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, height); ctx.stroke();
   }
-  for (let gy = Math.ceil(w.ymin / yStep) * yStep; gy <= w.ymax; gy += yStep) {
+  const yStartI = Math.ceil(w.ymin / yStep);
+  const yEndI = Math.floor(w.ymax / yStep);
+  for (let i = yStartI; i <= yEndI; i++) {
+    const gy = i * yStep;
     const [, cy] = worldToCanvas(0, gy, w, width, height);
     ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(width, cy); ctx.stroke();
   }
@@ -108,12 +115,14 @@ export function drawGraph(ctx: CanvasRenderingContext2D, fns: PlotFn[], w: Windo
   // Tick labels
   ctx.fillStyle = theme.label;
   ctx.font = '10px "Share Tech Mono", monospace';
-  for (let gx = Math.ceil(w.xmin / xStep) * xStep; gx <= w.xmax; gx += xStep) {
+  for (let i = xStartI; i <= xEndI; i++) {
+    const gx = i * xStep;
     if (Math.abs(gx) < xStep / 1000) continue;
     const [cx] = worldToCanvas(gx, 0, w, width, height);
     ctx.fillText(fmtNum(gx), cx + 3, Math.min(Math.max(ay + 12, 12), height - 3));
   }
-  for (let gy = Math.ceil(w.ymin / yStep) * yStep; gy <= w.ymax; gy += yStep) {
+  for (let i = yStartI; i <= yEndI; i++) {
+    const gy = i * yStep;
     if (Math.abs(gy) < yStep / 1000) continue;
     const [, cy] = worldToCanvas(0, gy, w, width, height);
     ctx.fillText(fmtNum(gy), Math.min(Math.max(ax + 4, 0), width - 40), cy - 3);
@@ -189,7 +198,9 @@ export function findZeros(expr: string, xmin: number, xmax: number, steps = 2000
     const x = xmin + i * dx;
     const y = evalGraphExpr(expr, x);
     if (!Number.isNaN(y) && isFinite(y)) {
-      if (y === 0) {
+      if (y === 0 && prevY !== 0) {
+        // Isolated exact zero. Require prev sample to be non-zero so an
+        // identically-zero function doesn't emit one "zero" per sample.
         if (!zeros.some((z) => Math.abs(z - x) < dx * 2)) zeros.push(x);
       } else if (!Number.isNaN(prevY) && isFinite(prevY) && prevY !== 0 && prevY * y < 0) {
         const avgMag = (Math.abs(prevY) + Math.abs(y)) / 2;

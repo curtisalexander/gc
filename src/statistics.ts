@@ -43,10 +43,17 @@ export function oneVarStats(data: number[]): OneVarStats | null {
   const popStdDev = Math.sqrt(ssd / n);
   const med = median(sorted);
   // Standard exclusive Q1/Q3: drop the overall median when n is odd.
-  const lowerHalf = n % 2 === 0 ? sorted.slice(0, n / 2) : sorted.slice(0, Math.floor(n / 2));
-  const upperHalf = n % 2 === 0 ? sorted.slice(n / 2) : sorted.slice(Math.ceil(n / 2));
-  const q1 = median(lowerHalf);
-  const q3 = median(upperHalf);
+  // For n=1 there's no lower/upper half — collapse quartiles to the single
+  // value so the display shows numbers instead of dashes.
+  let q1: number, q3: number;
+  if (n === 1) {
+    q1 = q3 = sorted[0]!;
+  } else {
+    const lowerHalf = n % 2 === 0 ? sorted.slice(0, n / 2) : sorted.slice(0, Math.floor(n / 2));
+    const upperHalf = n % 2 === 0 ? sorted.slice(n / 2) : sorted.slice(Math.ceil(n / 2));
+    q1 = median(lowerHalf);
+    q3 = median(upperHalf);
+  }
   const sumSq = data.reduce((a, b) => a + b * b, 0);
   return {
     n, mean, sampleStdDev, popStdDev, sum, sumSq,
