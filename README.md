@@ -1,10 +1,8 @@
 # GraphCalc
 
-A browser-based graphing calculator modeled on a Texas Instruments graphing
-calculator. Plotter, scientific calculator, statistics, and matrix tools — all
-in one page.
+A browser-based graphing calculator modeled. Plotter, scientific calculator, statistics, and matrix tools — all in one page.
 
-Live: https://calex.github.io/gc/ (after Pages deploy)
+Live: https://curtisalexander.github.io/gc/
 
 ## Features
 
