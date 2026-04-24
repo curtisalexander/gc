@@ -175,8 +175,16 @@ export function findZeros(expr: string, xmin: number, xmax: number, steps = 2000
   const zeros: number[] = [];
   if (!expr.trim() || !(xmax > xmin)) return zeros;
   const dx = (xmax - xmin) / steps;
+  // Bisection requires sign-change samples on both sides; an exact root *at*
+  // a search-window boundary (e.g. sin(x) at ±π) won't qualify because the
+  // algorithm never sees the other side. Catch those explicitly.
+  const BOUND_TOL = 1e-10;
+  const yAtMin = evalGraphExpr(expr, xmin);
+  if (!Number.isNaN(yAtMin) && isFinite(yAtMin) && Math.abs(yAtMin) < BOUND_TOL) {
+    zeros.push(xmin);
+  }
   let prevX = xmin;
-  let prevY = evalGraphExpr(expr, xmin);
+  let prevY = yAtMin;
   for (let i = 1; i <= steps; i++) {
     const x = xmin + i * dx;
     const y = evalGraphExpr(expr, x);
@@ -206,6 +214,12 @@ export function findZeros(expr: string, xmin: number, xmax: number, steps = 2000
     }
     prevX = x;
     prevY = y;
+  }
+  // Symmetric boundary check at xmax.
+  const yAtMax = evalGraphExpr(expr, xmax);
+  if (!Number.isNaN(yAtMax) && isFinite(yAtMax) && Math.abs(yAtMax) < BOUND_TOL
+      && !zeros.some((z) => Math.abs(z - xmax) < dx * 2)) {
+    zeros.push(xmax);
   }
   return zeros;
 }

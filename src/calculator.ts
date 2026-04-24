@@ -52,18 +52,18 @@ export class Calculator {
   }
 
   // For function keys. If shift is on and we have an alternate, use that.
-  // Special case '()' inserts the appropriate paren.
+  // Special case '()' inserts the appropriate paren. Shift is always cleared
+  // after a function press (one-shot), even when no SHIFT_MAP entry applies —
+  // otherwise it leaks into the next keypress.
   pressFn(token: string): void {
     if (this.shift && SHIFT_MAP[token]) {
       this.expr += SHIFT_MAP[token];
-      this.shift = false;
-      return;
-    }
-    if (token === '()') {
+    } else if (token === '()') {
       this.expr += this.openOrClose() ? '(' : ')';
-      return;
+    } else {
+      this.expr += token;
     }
-    this.expr += token;
+    this.shift = false;
   }
 
   private openOrClose(): boolean {

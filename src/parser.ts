@@ -37,6 +37,12 @@ function insertImplicitMul(e: string): string {
   e = e.replace(new RegExp(`(\\d)(pi|e|x|${FUNC_RE})\\b`, 'g'), '$1*$2');
   e = e.replace(new RegExp(`\\)(pi|e|x|${FUNC_RE})\\b`, 'g'), ')*$1');
   e = e.replace(new RegExp(`\\b(pi|x)(pi|e|x|${FUNC_RE}|\\d|\\()`, 'g'), '$1*$2');
+  // e-prefix implicit mul. Use lookahead with strict word-boundary on the
+  // following identifier so we don't mangle `exp(`, `e^x`, etc. — the bare
+  // `e` constant has to be followed by a *complete* token.
+  e = e.replace(/\be(?=(?:pi|x|e)\b)/g, 'e*');
+  e = e.replace(new RegExp(`\\be(?=(?:${FUNC_RE})\\()`, 'g'), 'e*');
+  e = e.replace(/\be(?=[\d(])/g, 'e*');
   // xx -> x*x. Loop until stable so that xxx -> x*x*x.
   let prev: string;
   do {
@@ -173,15 +179,21 @@ export function factorial(n: number): number {
   return r;
 }
 export function comb(n: number, r: number): number {
+  if (r < 0 || r > n) return 0;
   return factorial(n) / (factorial(r) * factorial(n - r));
 }
 export function perm(n: number, r: number): number {
+  if (r < 0 || r > n) return 0;
   return factorial(n) / factorial(n - r);
 }
 
 // Resolve all factorials in the string. Handles both `5!` and `(2+3)!` forms,
 // recursing through the supplied evalArg for parenthesized sub-expressions.
 function resolveFactorials(e: string, evalArg: (s: string) => number): string {
+  // Reject `!!` rather than silently computing (n!)! — that produces wildly
+  // wrong-looking huge numbers (5!! → 120! ≈ 6.7e198) instead of the math
+  // double-factorial 5*3*1 = 15.
+  if (/!\s*!/.test(e)) throw new Error('Double factorial not supported');
   let changed = true;
   while (changed) {
     changed = false;
@@ -308,5 +320,9 @@ export function evalCalcExpr(expr: string, opts: CalcOpts = {}): number {
     __ATAND__: (x: number) => Math.atan(x) * 180 / Math.PI,
   };
   const fn = new Function(...Object.keys(ctx), '"use strict"; return (' + e + ')');
-  return fn(...Object.values(ctx)) as number;
+  const raw = fn(...Object.values(ctx)) as number;
+  // Snap float-precision noise to zero so e.g. cos(90°) returns 0, not 6e-17.
+  // Threshold sits well below any "real" intentional small number a user
+  // would type into a calculator.
+  return Number.isFinite(raw) && Math.abs(raw) < 1e-13 ? 0 : raw;
 }

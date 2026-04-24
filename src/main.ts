@@ -274,7 +274,7 @@ const keys: KeyDef[] = [
   { label: 'ln',  top: 'e^x',  cls: 'fn', action: () => { calc.pressFn('ln(');  refreshCalc(); } },
 
   { label: '√',   top: 'x²',   cls: 'fn', action: () => { calc.pressFn('sqrt('); refreshCalc(); } },
-  { label: 'xʸ',  top: 'ˣ√y',  cls: 'fn', action: () => { calc.pressFn('^');     refreshCalc(); } },
+  { label: 'xʸ',               cls: 'fn', action: () => { calc.pressFn('^');     refreshCalc(); } },
   { label: '|x|',              cls: 'fn', action: () => { calc.pressFn('abs(');  refreshCalc(); } },
   { label: 'π',   top: 'e',    cls: 'fn', action: () => { calc.pressFn('pi');    refreshCalc(); } },
   { label: '( )',              cls: 'fn', action: () => { calc.pressFn('()');    refreshCalc(); } },
@@ -303,8 +303,9 @@ const keys: KeyDef[] = [
   { label: 'nCr', cls: 'fn', action: () => { calc.pressFn('nCr('); refreshCalc(); } },
   { label: '+',   cls: 'op', action: () => { calc.pressOp('+'); refreshCalc(); } },
 
-  { label: '0',   cls: 'span2', action: () => { calc.pressNum('0'); refreshCalc(); } },
+  { label: '0',   action: () => { calc.pressNum('0'); refreshCalc(); } },
   { label: '.',   action: () => { calc.pressNum('.'); refreshCalc(); } },
+  { label: ',',   cls: 'fn', action: () => { calc.pressOp(','); refreshCalc(); } },
   { label: 'nPr', cls: 'fn', action: () => { calc.pressFn('nPr('); refreshCalc(); } },
   { label: '=',   cls: 'eq', action: () => { calc.equals(); refreshCalc(); } },
 ];
@@ -346,6 +347,7 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === '(') calc.pressFn('(');
   else if (e.key === ')') calc.pressFn(')');
   else if (e.key === '^') calc.pressOp('^');
+  else if (e.key === ',') calc.pressOp(',');
   else return;
   refreshCalc();
 });
