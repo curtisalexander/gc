@@ -119,20 +119,6 @@ export function drawGraph(ctx: CanvasRenderingContext2D, fns: PlotFn[], w: Windo
   ctx.beginPath(); ctx.moveTo(ax, 0); ctx.lineTo(ax, height); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(0, ay); ctx.lineTo(width, ay); ctx.stroke();
 
-  // Tick labels
-  ctx.fillStyle = theme.label;
-  ctx.font = '10px "Share Tech Mono", monospace';
-  for (const gx of xTicks) {
-    if (Math.abs(gx) < xStep / 1000) continue;
-    const [cx] = worldToCanvas(gx, 0, w, width, height);
-    ctx.fillText(fmtNum(gx), cx + 3, Math.min(Math.max(ay + 12, 12), height - 3));
-  }
-  for (const gy of yTicks) {
-    if (Math.abs(gy) < yStep / 1000) continue;
-    const [, cy] = worldToCanvas(0, gy, w, width, height);
-    ctx.fillText(fmtNum(gy), Math.min(Math.max(ax + 4, 0), width - 40), cy - 3);
-  }
-
   // Plot each enabled function
   const steps = width * 2;
   const yRange = w.ymax - w.ymin;
@@ -164,6 +150,65 @@ export function drawGraph(ctx: CanvasRenderingContext2D, fns: PlotFn[], w: Windo
     }
     ctx.stroke();
     ctx.shadowBlur = 0;
+  }
+
+  // Draw labels after functions so a curve cannot obscure coordinate text.
+  ctx.fillStyle = theme.label;
+  ctx.font = '10px "Share Tech Mono", monospace';
+  const xLabels = xTicks
+    .filter(gx => Math.abs(gx) >= xStep / 1000)
+    .map(gx => {
+      const [cx] = worldToCanvas(gx, 0, w, width, height);
+      const label = fmtNum(gx);
+      const labelWidth = ctx.measureText(label).width;
+      const x = Math.min(Math.max(cx + 3, 24), Math.max(24, width - labelWidth - 24));
+      return { label, labelWidth, x };
+    });
+  const xBaseline = Math.min(Math.max(ay + 12, 14), height - 7);
+  const spacedXLabels: typeof xLabels = [];
+  for (let i = 0; i < xLabels.length; i++) {
+    const current = xLabels[i]!;
+    const previous = spacedXLabels.at(-1);
+    if (previous && previous.x + previous.labelWidth + 6 > current.x) {
+      if (i === xLabels.length - 1) spacedXLabels[spacedXLabels.length - 1] = current;
+      continue;
+    }
+    spacedXLabels.push(current);
+  }
+  for (const current of spacedXLabels) {
+    ctx.fillStyle = theme.bg;
+    ctx.fillRect(current.x - 2, xBaseline - 10, current.labelWidth + 4, 13);
+    ctx.fillStyle = theme.label;
+    ctx.fillText(current.label, current.x, xBaseline);
+  }
+  const yLabels = yTicks
+    .filter(gy => Math.abs(gy) >= yStep / 1000)
+    .map(gy => {
+      const [, cy] = worldToCanvas(0, gy, w, width, height);
+      const label = fmtNum(gy);
+      const labelWidth = ctx.measureText(label).width;
+      return {
+        label, labelWidth,
+        x: Math.min(Math.max(ax + 4, 3), width - labelWidth - 3),
+        baseline: Math.min(Math.max(cy - 3, 28), height - 28),
+      };
+    })
+    .sort((a, b) => a.baseline - b.baseline);
+  const spacedYLabels: typeof yLabels = [];
+  for (let i = 0; i < yLabels.length; i++) {
+    const current = yLabels[i]!;
+    const previous = spacedYLabels.at(-1);
+    if (previous && current.baseline - previous.baseline < 15) {
+      if (i === yLabels.length - 1) spacedYLabels[spacedYLabels.length - 1] = current;
+      continue;
+    }
+    spacedYLabels.push(current);
+  }
+  for (const current of spacedYLabels) {
+    ctx.fillStyle = theme.bg;
+    ctx.fillRect(current.x - 2, current.baseline - 10, current.labelWidth + 4, 13);
+    ctx.fillStyle = theme.label;
+    ctx.fillText(current.label, current.x, current.baseline);
   }
 
   // Trace marker on top of everything

@@ -644,11 +644,17 @@ canvas#graphCanvas {
   .graph-sidebar .sidebar-section { flex-shrink: 0; }
   .graph-controls { display: grid; grid-template-columns: repeat(2, 1fr); }
   .ctrl-btn { min-width: 0; white-space: nowrap; }
-  .graph-area { min-height: 420px; }
+  .graph-area { min-height: 420px; display: flex; flex-direction: column; }
+  canvas#graphCanvas { height: auto; flex: 1; min-height: 0; }
   .graph-overlay {
+    position: static;
+    order: -1;
+    flex-shrink: 0;
+    max-width: none;
     font-size: 11px;
     background: rgba(13, 19, 38, 0.86);
     padding: 4px 6px;
+    text-align: center;
   }
   .calc-shell { width: min(460px, 100%); }
   #view-calc { padding: 8px; align-items: flex-start; overflow-y: auto; }

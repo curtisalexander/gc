@@ -1,5 +1,4 @@
-/// <reference types="vitest" />
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 
 // Vite serves index.html at the project root and bundles src/main.ts via the
 // <script type="module"> reference inside it. `base: './'` keeps assets relative

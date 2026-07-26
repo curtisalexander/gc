@@ -1,6 +1,11 @@
 // DOM wiring + event handlers for GraphCalc. All math/state lives in the
 // other modules; this file just binds them to the page.
 
+import '@fontsource/share-tech-mono/latin-400.css';
+import '@fontsource/rajdhani/latin-400.css';
+import '@fontsource/rajdhani/latin-500.css';
+import '@fontsource/rajdhani/latin-600.css';
+import '@fontsource/rajdhani/latin-700.css';
 import './styles.css';
 import {
   type PlotFn,
@@ -129,10 +134,8 @@ function render(): void {
 }
 
 function resizeCanvas(): void {
-  const area = document.querySelector<HTMLElement>('.graph-area');
-  if (!area) return;
-  canvas.width = area.clientWidth;
-  canvas.height = area.clientHeight;
+  canvas.width = canvas.clientWidth;
+  canvas.height = canvas.clientHeight;
 }
 
 function updateInteractionHint(): void {

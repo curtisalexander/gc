@@ -156,13 +156,18 @@ the browser binary (~90 MB).
 
 ## Tests
 
-Two layers:
+Two execution layers, with deterministic property, accessibility, touch, and
+visual-regression coverage:
 
-- **Unit tests** (`tests/`, vitest): cover the math modules in isolation.
+- **Unit tests** (`tests/`, Vitest): cover the math modules in isolation. Seeded
+  `fast-check` properties generate reproducible expression, matrix, regression,
+  and distribution cases; `decimal.js`, exact formulas, and published normal
+  probabilities provide references independent of the production algorithms.
 - **End-to-end tests** (`e2e/`, Playwright): boot Vite, drive each tab at desktop
   and mobile sizes, check happy paths and invalid-input behavior, exercise
-  keyboard semantics, and snap screenshots into `e2e/screenshots/`. Uncaught
-  page and console errors fail the suite.
+  keyboard and real touch input, run Axe accessibility scans, and compare the
+  UI with committed desktop/mobile visual baselines. Uncaught page and console
+  errors fail the suite.
 
 Unit-test highlights:
 
@@ -177,12 +182,21 @@ Unit-test highlights:
   singular detection.
 - **Graphing**: viewport math, `findZeros` (including asymptote rejection),
   `squareWindow` regression test.
+- **Generated properties**: nested arithmetic against high-precision Decimal,
+  compiled/direct graph agreement, transpose/product and determinant identities,
+  two-sided inverse checks, RREF idempotence, translated/scaled regressions,
+  and normal-CDF monotonicity, symmetry, tails, and published reference values.
+- **Browser quality**: Axe scans every tool, verifies focus and ARIA state,
+  performs a Chromium touch drag and tap, and protects approved layouts with
+  Playwright screenshot comparisons.
 
 ### Screenshots
 
-Screenshots are produced as a side-effect of the e2e suite. PNGs land in
-`e2e/screenshots/` (gitignored), one per spec, named `01-graph.png`,
-`02-graph-help.png`, etc.
+Review screenshots are produced as a side-effect of the e2e suite. PNGs land
+in `e2e/screenshots/` (gitignored), one per spec, named `01-graph.png`,
+`02-graph-help.png`, etc. Approved comparison baselines are committed under
+`e2e/quality.spec.ts-snapshots/`; ordinary test runs fail when the rendered UI
+differs beyond the configured tolerance.
 
 ```bash
 # First-time setup (downloads ~90 MB Chromium binary)
@@ -190,6 +204,9 @@ npx playwright install chromium
 
 # Take all screenshots (also runs the assertions)
 npm run e2e
+
+# Deliberately approve a reviewed visual change
+npx playwright test e2e/quality.spec.ts --update-snapshots=all
 
 # Single test by name
 npx playwright test -g "find zeros"

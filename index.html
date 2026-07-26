@@ -4,12 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GraphCalc</title>
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
 <header>
-  <div class="logo">Graph<span>Calc</span></div>
+  <h1 class="logo">Graph<span>Calc</span></h1>
   <div class="tabs" role="tablist" aria-label="Calculator tools">
     <button class="tab active" id="tab-graph" data-tab="graph" role="tab" aria-selected="true" aria-controls="view-graph">Graph</button>
     <button class="tab" id="tab-calc" data-tab="calc" role="tab" aria-selected="false" aria-controls="view-calc">Calc</button>
@@ -18,7 +17,7 @@
   </div>
 </header>
 
-<div class="main">
+<main class="main">
 
   <!-- GRAPHING VIEW -->
   <div id="view-graph" class="panel-view active" role="tabpanel" aria-labelledby="tab-graph">
@@ -119,8 +118,8 @@
   <div id="view-calc" class="panel-view" role="tabpanel" aria-labelledby="tab-calc">
     <div class="calc-shell" id="calcShell">
       <div class="calc-display">
-        <div class="calc-history" id="calcHistory" aria-label="Previous calculation"></div>
-        <div class="calc-expr" id="calcExpr" aria-label="Current expression"></div>
+        <div class="calc-history" id="calcHistory" role="group" aria-label="Previous calculation"></div>
+        <div class="calc-expr" id="calcExpr" role="group" aria-label="Current expression"></div>
         <div class="calc-result" id="calcResult" role="status" aria-live="polite" aria-label="Calculator result">0</div>
       </div>
       <div class="mode-bar">
@@ -227,7 +226,7 @@
     </div>
   </div>
 
-</div>
+</main>
 
 <script type="module" src="/src/main.ts"></script>
 </body>
