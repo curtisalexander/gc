@@ -18,6 +18,18 @@ describe('findZeros', () => {
     expect(z.some((v) => Math.abs(v - 2) < 1e-4)).toBe(true);
     expect(z.some((v) => Math.abs(v + 2) < 1e-4)).toBe(true);
   });
+  it('finds an unsampled even-multiplicity root', () => {
+    const z = findZeros('(x-0.12345)^2', -1, 1);
+    expect(z.some((v) => Math.abs(v - 0.12345) < 1e-6)).toBe(true);
+  });
+  it('is invariant to large vertical scaling', () => {
+    const z = findZeros('1e12*(x-0.12345)', -1, 1);
+    expect(z.some((v) => Math.abs(v - 0.12345) < 1e-6)).toBe(true);
+  });
+  it('is invariant to tiny vertical scaling', () => {
+    const z = findZeros('1e-200*(x-0.12345)', -1, 1);
+    expect(z.some((v) => Math.abs(v - 0.12345) < 1e-6)).toBe(true);
+  });
   it('skips asymptote of 1/x (not a real zero)', () => {
     const z = findZeros('1/x', -5, 5);
     // Magnitude at x near 0 should be detected as asymptote and skipped.
@@ -25,6 +37,7 @@ describe('findZeros', () => {
   });
   it('returns empty for no-zero function', () => {
     expect(findZeros('x^2+1', -5, 5)).toEqual([]);
+    expect(findZeros('1e-12', -1, 1)).toEqual([]);
   });
 });
 
@@ -85,6 +98,7 @@ describe('format helpers', () => {
     expect(fmtNum(5)).toBe('5');
     expect(fmtNum(-3)).toBe('-3');
     expect(fmtNum(0.1234567)).toBe('0.123');
+    expect(fmtNum(NaN)).toBe('NaN');
   });
   it('formatResult handles edge cases', () => {
     expect(formatResult(NaN)).toBe('Error');

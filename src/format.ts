@@ -16,6 +16,7 @@ export function niceStep(range: number): number {
 
 // Compact axis-label formatter: integers as-is, otherwise 3 sig figs.
 export function fmtNum(n: number): string {
+  if (Number.isNaN(n)) return 'NaN';
   if (!isFinite(n)) return n > 0 ? '∞' : '−∞';
   if (Number.isInteger(n)) return n.toString();
   return parseFloat(n.toPrecision(3)).toString();

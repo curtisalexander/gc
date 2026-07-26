@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { evalGraphExpr, evalCalcExpr, convertPowers, factorial, comb, perm } from '../src/parser.js';
+import { evalGraphExpr, evalCalcExpr, isValidGraphExpr, convertPowers, factorial, comb, perm } from '../src/parser.js';
 
 // Tolerant equality helper.
 const close = (actual: number, expected: number, tol = 1e-9) =>
@@ -211,5 +211,71 @@ describe('factorial / comb / perm', () => {
     expect(perm(5, 2)).toBe(20);
     expect(perm(5, 5)).toBe(120);
     expect(perm(10, 0)).toBe(1);
+  });
+});
+
+describe('safe expression-engine regressions', () => {
+  it('distinguishes invalid graph syntax from valid domain gaps', () => {
+    expect(isValidGraphExpr('1/x')).toBe(true);
+    expect(isValidGraphExpr('sqrt(x-5)')).toBe(true);
+    expect(isValidGraphExpr('globalThis.alert(1)')).toBe(false);
+    expect(isValidGraphExpr('x=1')).toBe(false);
+  });
+  it('preserves intentional tiny values without global snapping', () => {
+    expect(evalCalcExpr('1e-14')).toBe(1e-14);
+    expect(evalGraphExpr('1e-14', 0)).toBe(1e-14);
+  });
+
+  it('rejects JavaScript, globals, properties, assignments, and calculator x', () => {
+    for (const expression of [
+      'globalThis', 'process', 'Math.sin(0)', '({}).constructor', 'x=1',
+      'constructor.constructor(1)', 'alert(1)', 'x',
+    ]) expect(() => evalCalcExpr(expression)).toThrow();
+    expect(Number.isNaN(evalGraphExpr('globalThis.process', 0))).toBe(true);
+    expect(Number.isNaN(evalGraphExpr('x=1', 0))).toBe(true);
+  });
+
+  it('uses the same undefined tangent behavior in graph and calculator', () => {
+    expect(Number.isNaN(evalCalcExpr('tan(pi/2)'))).toBe(true);
+    expect(Number.isNaN(evalGraphExpr('tan(pi/2)', 0))).toBe(true);
+  });
+
+  it('does not let undefined intermediate values recover into finite answers', () => {
+    for (const expression of ['atan(1/0)', 'exp(-1/0)', '1/(1/0)'])
+      expect(Number.isNaN(evalCalcExpr(expression))).toBe(true);
+  });
+
+  it('preserves tiny nonzero trig results that are not exact quadrants', () => {
+    expect(evalCalcExpr('sin(1e-16)', { angleMode: 'rad' })).toBeCloseTo(1e-16, 30);
+    expect(evalCalcExpr('sin(1e-13)', { angleMode: 'deg' })).not.toBe(0);
+  });
+
+  it('does not misclassify rounded large arguments as exact quadrants', () => {
+    expect(evalCalcExpr('sin(5e15)', { angleMode: 'rad' })).toBeCloseTo(Math.sin(5e15), 12);
+    expect(evalCalcExpr('sin(5e17)', { angleMode: 'deg' })).toBeCloseTo(Math.sin(5e17 * Math.PI / 180), 12);
+  });
+
+  it('supports real cube roots of negative values', () => {
+    expect(evalCalcExpr('cbrt(-8)')).toBe(-2);
+    expect(evalGraphExpr('cbrt(x)', -8)).toBe(-2);
+  });
+
+  it('computes large nCr/nPr cases without overflowing intermediate factorials', () => {
+    expect(evalCalcExpr('nCr(171,1)')).toBe(171);
+    expect(evalCalcExpr('nPr(171,1)')).toBe(171);
+  });
+
+  it('terminates promptly once very large combinatoric results overflow', () => {
+    expect(Number.isNaN(evalCalcExpr('nPr(1000000000,1000000000)'))).toBe(true);
+  });
+
+  it('rejects malformed syntax and misplaced commas', () => {
+    for (const expression of ['1,2', 'sin(1,2)', 'nCr(2)', 'nCr(2,1,0)', '2+', '()', '1..2'])
+      expect(() => evalCalcExpr(expression)).toThrow();
+  });
+
+  it('guards expression length and nesting', () => {
+    expect(() => evalCalcExpr('1'.repeat(4097))).toThrow(/too long/i);
+    expect(() => evalCalcExpr('('.repeat(101) + '1' + ')'.repeat(101))).toThrow(/deep/i);
   });
 });

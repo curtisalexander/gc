@@ -45,7 +45,7 @@ test('graph view: zoom in', async ({ page }) => {
 test('graph view: find zeros of sin(x)', async ({ page }) => {
   // Replace the first function with sin(x) (it already is) and ask for zeros.
   await page.locator('#zeroBtn').click();
-  await expect(page.locator('#coordBox')).toContainText('Zero');
+  await expect(page.locator('#coordBox')).toContainText('Candidate');
   await page.screenshot({ path: `${SHOTS}/04-graph-zeros.png`, fullPage: true });
 });
 
@@ -104,4 +104,90 @@ test('matrix view: determinant of A', async ({ page }) => {
   await page.locator('[data-matop="det"]').click();
   await expect(page.locator('#matrixResult')).toContainText('det(A) = 1');
   await page.screenshot({ path: `${SHOTS}/10-matrix-det.png`, fullPage: true });
+});
+
+test('invalid input is rejected instead of silently changing data', async ({ page }) => {
+  await page.locator('.tab[data-tab="stats"]').click();
+  await page.locator('#calc1VarBtn').click();
+  await expect(page.locator('#stat1Results')).toContainText('x̄');
+  await page.locator('#statData1').fill('1, invalid, 2');
+  await page.locator('#calc1VarBtn').click();
+  await expect(page.locator('#stat1Results')).toContainText('Invalid numeric token 2');
+  await expect(page.locator('#stat1Results')).not.toContainText('x̄');
+
+  await page.locator('#distSigma').fill('-1');
+  await page.locator('#normCdfBtn').click();
+  await expect(page.locator('#distResult')).toContainText('greater than zero');
+
+  await page.locator('.tab[data-tab="matrix"]').click();
+  await page.locator('#matA_0_0').fill('');
+  await page.locator('[data-matop="det"]').click();
+  await expect(page.locator('#matrixResult')).toContainText('row 1, column 1 is required');
+});
+
+test('graph validates its window and supports keyboard controls', async ({ page }) => {
+  await page.locator('#xmax').fill('-20');
+  await page.locator('#xmax').press('Tab');
+  await expect(page.locator('#windowError')).toContainText('X minimum must be less than X maximum');
+  await page.locator('#stdWinBtn').click();
+  await page.locator('#graphCanvas').focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('#xmin')).toHaveValue('-12');
+  await expect(page.locator('#xmax')).toHaveValue('8');
+  await page.locator('#xmin').fill('-1e308');
+  await page.locator('#xmax').fill('1e308');
+  await page.locator('#xmax').press('Tab');
+  await expect(page.locator('#windowError')).toContainText('outside the supported numeric range');
+});
+
+test('tabs expose state and support arrow-key navigation', async ({ page }) => {
+  const graphTab = page.locator('#tab-graph');
+  await expect(graphTab).toHaveAttribute('aria-selected', 'true');
+  await graphTab.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('#tab-calc')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#view-calc')).toBeVisible();
+});
+
+test('editing inputs invalidates stale results in every tool', async ({ page }) => {
+  await page.locator('#zeroBtn').click();
+  await expect(page.locator('#coordBox')).toContainText('Candidate');
+  await page.locator('.fn-input').first().fill('cos(x)');
+  await expect(page.locator('#coordBox')).toContainText('Function changed');
+
+  await page.locator('.tab[data-tab="stats"]').click();
+  await page.locator('#calc1VarBtn').click();
+  await page.locator('#statData1').fill('1, 2, 3');
+  await expect(page.locator('#stat1Results')).toHaveText('Inputs changed — recalculate');
+
+  await page.locator('#linRegBtn').click();
+  await page.locator('#statDataX').fill('1, 2, 3');
+  await expect(page.locator('#regResult')).toHaveText('Inputs changed — recalculate');
+
+  await page.locator('#normCdfBtn').click();
+  await page.locator('#distMu').fill('1');
+  await expect(page.locator('#distResult')).toHaveText('Inputs changed — recalculate');
+
+  await page.locator('#sortAscBtn').click();
+  await page.locator('#listData').fill('2, 1');
+  await expect(page.locator('#listResult')).toHaveText('Inputs changed — recalculate');
+
+  await page.locator('.tab[data-tab="matrix"]').click();
+  await page.locator('[data-matop="det"]').click();
+  await page.locator('#matA_0_0').fill('2');
+  await expect(page.locator('#matrixResult')).toHaveText('Inputs changed — select an operation');
+});
+
+test('mobile views fit the viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const tab of ['graph', 'calc', 'stats', 'matrix']) {
+    await page.locator(`.tab[data-tab="${tab}"]`).click();
+    const width = await page.evaluate(() => ({
+      scroll: document.documentElement.scrollWidth,
+      client: document.documentElement.clientWidth,
+    }));
+    expect(width.scroll).toBeLessThanOrEqual(width.client);
+  }
+  await page.locator('.tab[data-tab="graph"]').click();
+  await page.screenshot({ path: `${SHOTS}/11-mobile-graph.png`, fullPage: true });
 });

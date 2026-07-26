@@ -1,7 +1,7 @@
 // Graph rendering, viewport math, and root-finding. The DOM-touching glue
 // (event listeners, sidebar inputs, color palette) lives in main.ts.
 
-import { evalGraphExpr } from './parser.js';
+import { compileGraphExpr, evalGraphExpr } from './parser.js';
 import { niceStep, fmtNum } from './format.js';
 
 export interface Window2D {
@@ -72,6 +72,17 @@ export interface DrawOpts {
   theme?: Theme;
 }
 
+function tickValues(min: number, max: number, step: number): number[] {
+  if (!Number.isFinite(min) || !Number.isFinite(max) || !Number.isFinite(step) || step <= 0) return [];
+  const first = Math.ceil(min / step);
+  const last = Math.floor(max / step);
+  const count = last - first + 1;
+  if (!Number.isFinite(first) || !Number.isFinite(last) || !Number.isSafeInteger(count)
+      || count < 1 || count > 2_000) return [];
+  return Array.from({ length: count }, (_, index) => (first + index) * step)
+    .filter(Number.isFinite);
+}
+
 export function drawGraph(ctx: CanvasRenderingContext2D, fns: PlotFn[], w: Window2D, opts: DrawOpts = {}): void {
   const canvas = ctx.canvas;
   const width = canvas.width;
@@ -89,17 +100,13 @@ export function drawGraph(ctx: CanvasRenderingContext2D, fns: PlotFn[], w: Windo
   ctx.lineWidth = 1;
   const xStep = niceStep(w.xmax - w.xmin);
   const yStep = niceStep(w.ymax - w.ymin);
-  const xStartI = Math.ceil(w.xmin / xStep);
-  const xEndI = Math.floor(w.xmax / xStep);
-  for (let i = xStartI; i <= xEndI; i++) {
-    const gx = i * xStep;
+  const xTicks = tickValues(w.xmin, w.xmax, xStep);
+  const yTicks = tickValues(w.ymin, w.ymax, yStep);
+  for (const gx of xTicks) {
     const [cx] = worldToCanvas(gx, 0, w, width, height);
     ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, height); ctx.stroke();
   }
-  const yStartI = Math.ceil(w.ymin / yStep);
-  const yEndI = Math.floor(w.ymax / yStep);
-  for (let i = yStartI; i <= yEndI; i++) {
-    const gy = i * yStep;
+  for (const gy of yTicks) {
     const [, cy] = worldToCanvas(0, gy, w, width, height);
     ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(width, cy); ctx.stroke();
   }
@@ -115,14 +122,12 @@ export function drawGraph(ctx: CanvasRenderingContext2D, fns: PlotFn[], w: Windo
   // Tick labels
   ctx.fillStyle = theme.label;
   ctx.font = '10px "Share Tech Mono", monospace';
-  for (let i = xStartI; i <= xEndI; i++) {
-    const gx = i * xStep;
+  for (const gx of xTicks) {
     if (Math.abs(gx) < xStep / 1000) continue;
     const [cx] = worldToCanvas(gx, 0, w, width, height);
     ctx.fillText(fmtNum(gx), cx + 3, Math.min(Math.max(ay + 12, 12), height - 3));
   }
-  for (let i = yStartI; i <= yEndI; i++) {
-    const gy = i * yStep;
+  for (const gy of yTicks) {
     if (Math.abs(gy) < yStep / 1000) continue;
     const [, cy] = worldToCanvas(0, gy, w, width, height);
     ctx.fillText(fmtNum(gy), Math.min(Math.max(ax + 4, 0), width - 40), cy - 3);
@@ -133,6 +138,7 @@ export function drawGraph(ctx: CanvasRenderingContext2D, fns: PlotFn[], w: Windo
   const yRange = w.ymax - w.ymin;
   for (const fn of fns) {
     if (!fn.enabled || !fn.expr.trim()) continue;
+    const evaluate = compileGraphExpr(fn.expr);
     ctx.strokeStyle = fn.color;
     ctx.lineWidth = 2;
     ctx.shadowColor = fn.color;
@@ -142,7 +148,7 @@ export function drawGraph(ctx: CanvasRenderingContext2D, fns: PlotFn[], w: Windo
     let prevY: number | null = null;
     for (let i = 0; i <= steps; i++) {
       const wx = w.xmin + (i / steps) * (w.xmax - w.xmin);
-      const wy = evalGraphExpr(fn.expr, wx);
+      const wy = evaluate(wx);
       if (Number.isNaN(wy) || !isFinite(wy)) { prevValid = false; prevY = null; continue; }
       const [cx, cy] = worldToCanvas(wx, wy, w, width, height);
       // Detect probable asymptote: huge jump with sign flip.
@@ -163,7 +169,7 @@ export function drawGraph(ctx: CanvasRenderingContext2D, fns: PlotFn[], w: Windo
   // Trace marker on top of everything
   if (opts.trace && fns[opts.trace.fnIndex]) {
     const fn = fns[opts.trace.fnIndex]!;
-    const wy = evalGraphExpr(fn.expr, opts.trace.x);
+    const wy = compileGraphExpr(fn.expr)(opts.trace.x);
     if (!Number.isNaN(wy) && isFinite(wy)) {
       const [cx, cy] = worldToCanvas(opts.trace.x, wy, w, width, height);
       ctx.beginPath();
@@ -177,60 +183,83 @@ export function drawGraph(ctx: CanvasRenderingContext2D, fns: PlotFn[], w: Windo
   }
 }
 
-// Find sign-change zeros of f within [xmin, xmax]. Skips probable asymptotes
-// by ignoring sign changes between samples whose mean magnitude is huge.
-// Refines each candidate with bisection.
+// Find sampled sign-change and tangent zeros within [xmin, xmax]. Sign changes
+// are refined with bisection; local minima of |f| are refined with a bounded
+// golden-section search so even-multiplicity roots can be detected too.
 export function findZeros(expr: string, xmin: number, xmax: number, steps = 2000): number[] {
   const zeros: number[] = [];
-  if (!expr.trim() || !(xmax > xmin)) return zeros;
+  if (!expr.trim() || !(xmax > xmin) || !Number.isFinite(xmin) || !Number.isFinite(xmax)
+      || !Number.isInteger(steps) || steps < 2) return zeros;
+  const evaluate = compileGraphExpr(expr);
   const dx = (xmax - xmin) / steps;
   // Bisection requires sign-change samples on both sides; an exact root *at*
   // a search-window boundary (e.g. sin(x) at ±π) won't qualify because the
   // algorithm never sees the other side. Catch those explicitly.
-  const BOUND_TOL = 1e-10;
-  const yAtMin = evalGraphExpr(expr, xmin);
-  if (!Number.isNaN(yAtMin) && isFinite(yAtMin) && Math.abs(yAtMin) < BOUND_TOL) {
+  const yAtMin = evaluate(xmin);
+  if (yAtMin === 0) {
     zeros.push(xmin);
   }
   let prevX = xmin;
   let prevY = yAtMin;
+  let beforePrevX = xmin;
+  let beforePrevY = NaN;
   for (let i = 1; i <= steps; i++) {
     const x = xmin + i * dx;
-    const y = evalGraphExpr(expr, x);
+    const y = evaluate(x);
     if (!Number.isNaN(y) && isFinite(y)) {
       if (y === 0 && prevY !== 0) {
         // Isolated exact zero. Require prev sample to be non-zero so an
         // identically-zero function doesn't emit one "zero" per sample.
         if (!zeros.some((z) => Math.abs(z - x) < dx * 2)) zeros.push(x);
-      } else if (!Number.isNaN(prevY) && isFinite(prevY) && prevY !== 0 && prevY * y < 0) {
-        const avgMag = (Math.abs(prevY) + Math.abs(y)) / 2;
-        if (avgMag < 1e6) {
-          let lo = prevX, hi = x;
-          let ylo = prevY;
-          for (let j = 0; j < 60; j++) {
-            const mid = (lo + hi) / 2;
-            const ym = evalGraphExpr(expr, mid);
-            if (Number.isNaN(ym) || !isFinite(ym)) break;
-            if (ylo * ym <= 0) { hi = mid; }
-            else { lo = mid; ylo = ym; }
-            if (Math.abs(hi - lo) < 1e-12) break;
-          }
-          const zx = (lo + hi) / 2;
-          const yAtZero = evalGraphExpr(expr, zx);
-          if (!Number.isNaN(yAtZero) && Math.abs(yAtZero) < 1e-4) {
-            if (!zeros.some((z) => Math.abs(z - zx) < dx * 2)) zeros.push(zx);
-          }
+      } else if (!Number.isNaN(prevY) && isFinite(prevY) && prevY !== 0
+          && ((prevY < 0 && y > 0) || (prevY > 0 && y < 0))) {
+        let lo = prevX, hi = x;
+        let ylo = prevY;
+        for (let j = 0; j < 60; j++) {
+          const mid = (lo + hi) / 2;
+          const ym = evaluate(mid);
+          if (Number.isNaN(ym) || !isFinite(ym)) break;
+          if (ym === 0 || (ylo < 0 && ym > 0) || (ylo > 0 && ym < 0)) { hi = mid; }
+          else { lo = mid; ylo = ym; }
+          if (Math.abs(hi - lo) < Math.max(1, Math.abs(mid)) * 1e-13) break;
+        }
+        const zx = (lo + hi) / 2;
+        const yAtZero = evaluate(zx);
+        const localScale = Math.min(Math.abs(prevY), Math.abs(y));
+        if (Number.isFinite(yAtZero) && localScale > 0 && Math.abs(yAtZero) <= localScale * 1e-6) {
+          if (!zeros.some((z) => Math.abs(z - zx) < dx * 2)) zeros.push(zx);
         }
       }
+
+      // A local minimum of |f| can be a tangent root. Refine the previous
+      // sample only when both neighboring samples are finite and larger.
+      if (Number.isFinite(beforePrevY) && Number.isFinite(prevY)
+          && Math.abs(prevY) < Math.abs(beforePrevY) && Math.abs(prevY) < Math.abs(y)) {
+        let lo = beforePrevX, hi = x;
+        const phi = (Math.sqrt(5) - 1) / 2;
+        let c = hi - phi * (hi - lo), d = lo + phi * (hi - lo);
+        let fc = Math.abs(evaluate(c)), fd = Math.abs(evaluate(d));
+        for (let j = 0; j < 70 && Number.isFinite(fc) && Number.isFinite(fd); j++) {
+          if (fc <= fd) { hi = d; d = c; fd = fc; c = hi - phi * (hi - lo); fc = Math.abs(evaluate(c)); }
+          else { lo = c; c = d; fc = fd; d = lo + phi * (hi - lo); fd = Math.abs(evaluate(d)); }
+        }
+        const zx = (lo + hi) / 2;
+        const residual = Math.abs(evaluate(zx));
+        const localScale = Math.max(Math.abs(beforePrevY), Math.abs(y));
+        if (Number.isFinite(residual) && localScale > 0 && residual <= localScale * 1e-8
+            && !zeros.some((z) => Math.abs(z - zx) < dx * 2)) zeros.push(zx);
+      }
     }
+    beforePrevX = prevX;
+    beforePrevY = prevY;
     prevX = x;
     prevY = y;
   }
   // Symmetric boundary check at xmax.
-  const yAtMax = evalGraphExpr(expr, xmax);
-  if (!Number.isNaN(yAtMax) && isFinite(yAtMax) && Math.abs(yAtMax) < BOUND_TOL
+  const yAtMax = evaluate(xmax);
+  if (yAtMax === 0
       && !zeros.some((z) => Math.abs(z - xmax) < dx * 2)) {
     zeros.push(xmax);
   }
-  return zeros;
+  return zeros.sort((a, b) => a - b);
 }

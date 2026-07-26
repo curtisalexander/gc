@@ -101,9 +101,9 @@ describe('BUG PROBE — calculator equals after Infinity', () => {
     const c = new Calculator();
     c.pressNum('1'); c.pressOp('/'); c.pressNum('0');
     c.equals();
-    // Either show ∞ or Error — but state should be sane.
+    // Division by zero is a math error and must not corrupt calculator state.
     const s = c.snapshot();
-    expect(['+∞', 'Error']).toContain(s.result);
+    expect(s.result).toBe('Math error');
   });
 });
 

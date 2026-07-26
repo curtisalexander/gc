@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   parseData, median, oneVarStats,
   linearRegression, quadRegression, expRegression,
-  normalCDF, invNorm, erf,
+  normalCDF, normalIntervalProbability, invNorm, erf,
   cumSum, deltaList, sortAsc, sortDesc, gaussSolve,
 } from '../src/statistics.js';
 
@@ -19,8 +19,9 @@ describe('parseData', () => {
   it('parses mixed and trims junk', () => {
     expect(parseData('  1, ,2;3   4 ')).toEqual([1, 2, 3, 4]);
   });
-  it('rejects non-numeric tokens', () => {
-    expect(parseData('1, abc, 2')).toEqual([1, 2]);
+  it('rejects non-numeric and nonfinite tokens without silently dropping them', () => {
+    expect(() => parseData('1, abc, 2')).toThrow(/token 2.*abc/i);
+    expect(() => parseData('1 Infinity')).toThrow(/Infinity/);
   });
   it('handles empty', () => {
     expect(parseData('')).toEqual([]);
@@ -47,6 +48,11 @@ describe('oneVarStats', () => {
     // pop stddev: sqrt(40/5)=sqrt(8) ≈ 2.82843
     close(r.popStdDev, Math.sqrt(8));
   });
+  it('uses compensated summation for values with severe cancellation', () => {
+    const r = oneVarStats([1e16, 1, -1e16])!;
+    expect(r.sum).toBe(1);
+    expect(r.mean).toBe(1 / 3);
+  });
   it('exclusive Q1/Q3 with odd n', () => {
     // [1,2,3,4,5] -> median=3, lower=[1,2] q1=1.5, upper=[4,5] q3=4.5
     const r = oneVarStats([1, 2, 3, 4, 5])!;
@@ -63,7 +69,7 @@ describe('oneVarStats', () => {
   it('singleton', () => {
     const r = oneVarStats([42])!;
     expect(r.mean).toBe(42);
-    expect(r.sampleStdDev).toBe(0);
+    expect(Number.isNaN(r.sampleStdDev)).toBe(true);
     expect(r.median).toBe(42);
     // n=1 collapses quartiles to the single value (no empty halves).
     expect(r.q1).toBe(42);
@@ -76,6 +82,14 @@ describe('oneVarStats', () => {
 });
 
 describe('linearRegression', () => {
+  it('is stable for large offsets and small scales', () => {
+    for (const xs of [[1e12, 1e12 + 1, 1e12 + 2], [1e-14, 2e-14, 3e-14]]) {
+      const ys = xs.map((_, i) => 7 + 2 * i);
+      const r = linearRegression(xs, ys);
+      if ('error' in r) throw new Error(r.error);
+      close(r.slope, 2 / (xs[1]! - xs[0]!), Math.abs(r.slope) * 1e-10);
+    }
+  });
   it('perfect line: y = 2x', () => {
     const r = linearRegression([1, 2, 3, 4, 5], [2, 4, 6, 8, 10]);
     if ('error' in r) throw new Error(r.error);
@@ -83,6 +97,15 @@ describe('linearRegression', () => {
     close(r.intercept, 0);
     close(r.r2, 1);
     close(r.r, 1);
+  });
+  it('remains stable near double underflow and overflow scales', () => {
+    for (const scale of [1e-200, 1e200]) {
+      const xs = [0, scale, 2 * scale];
+      const r = linearRegression(xs, [1, 2, 3]);
+      if ('error' in r) throw new Error(r.error);
+      expect(r.slope * scale).toBeCloseTo(1, 10);
+      expect(r.intercept).toBeCloseTo(1, 10);
+    }
   });
   it('perfect line with offset: y = 3x + 1', () => {
     const r = linearRegression([0, 1, 2, 3], [1, 4, 7, 10]);
@@ -135,15 +158,40 @@ describe('expRegression', () => {
     const r = expRegression([1, 2, 3], [1, 0, 1]);
     expect('error' in r).toBe(true);
   });
+  it('remains stable for very small and very large x scales', () => {
+    for (const scale of [1e-200, 1e200]) {
+      const xs = [0, scale, 2 * scale];
+      const ys = xs.map((_, i) => 2 * Math.exp(0.5 * i));
+      const r = expRegression(xs, ys);
+      if ('error' in r) throw new Error(r.error);
+      expect(r.b * scale).toBeCloseTo(0.5, 10);
+      expect(r.a).toBeCloseTo(2, 10);
+    }
+  });
 });
 
 describe('normal distribution', () => {
+  it('rejects nonfinite arguments and non-positive sigma', () => {
+    expect(Number.isNaN(normalCDF(Infinity))).toBe(true);
+    expect(Number.isNaN(normalCDF(0, 0, 0))).toBe(true);
+    expect(Number.isNaN(invNorm(0.5, 0, -1))).toBe(true);
+    expect(Number.isNaN(invNorm(NaN))).toBe(true);
+  });
   it('normalCDF at known points', () => {
     // P(-1 < Z < 1) ≈ 0.6827
     close(normalCDF(1) - normalCDF(-1), 0.6827, 1e-3);
     // P(-2 < Z < 2) ≈ 0.9545
     close(normalCDF(2) - normalCDF(-2), 0.9545, 1e-3);
     close(normalCDF(0), 0.5, 1e-7);
+  });
+  it('standardizes huge finite values without overflowing sigma or differences', () => {
+    close(normalCDF(1.5e308, 0, 1.5e308), 0.841344746, 1e-6);
+    expect(Number.isFinite(normalCDF(1e308, -1e308, 1e308))).toBe(true);
+  });
+  it('retains nonzero upper-tail interval probabilities', () => {
+    const probability = normalIntervalProbability(9, 10);
+    expect(probability).toBeGreaterThan(0);
+    expect(probability).toBeLessThan(2e-19);
   });
   it('erf basic identities', () => {
     close(erf(0), 0, 1e-7);
@@ -168,6 +216,9 @@ describe('list ops', () => {
 });
 
 describe('gaussSolve', () => {
+  it('solves uniformly tiny valid systems', () => {
+    expect(gaussSolve([[1e-13]], [2e-13])).toEqual([2]);
+  });
   it('solves a 3x3 system', () => {
     // x+y+z=6, 2y+5z=-4, 2x+5y-z=27 → x=5, y=3, z=-2
     const A = [[1, 1, 1], [0, 2, 5], [2, 5, -1]];
@@ -177,6 +228,13 @@ describe('gaussSolve', () => {
     close(sol![0]!, 5);
     close(sol![1]!, 3);
     close(sol![2]!, -2);
+  });
+  it('solves mixed-scale systems without elimination underflow', () => {
+    const A = [[1e200, 1e200], [1e-200, 2e-200]];
+    const solution = gaussSolve(A, [2e200, 3e-200]);
+    expect(solution).not.toBeNull();
+    expect(solution![0]).toBeCloseTo(1, 12);
+    expect(solution![1]).toBeCloseTo(1, 12);
   });
   it('returns null for singular system', () => {
     const A = [[1, 2], [2, 4]];

@@ -110,7 +110,7 @@ export class Calculator {
     try {
       const value = evalCalcExpr(this.expr, { angleMode: this.angleMode });
       if (Number.isNaN(value)) {
-        this.result = 'Error';
+        this.result = 'Math error';
         return false;
       }
       this.history = this.expr + ' =';
@@ -119,7 +119,7 @@ export class Calculator {
       this.expr = '';
       return true;
     } catch {
-      this.result = 'Error';
+      this.result = 'Invalid expression';
       return false;
     }
   }

@@ -1,6 +1,6 @@
 # GraphCalc
 
-A browser-based graphing calculator modeled. Plotter, scientific calculator, statistics, and matrix tools — all in one page.
+A browser-based graphing, scientific, statistics, and matrix calculator — all in one page.
 
 Live: https://curtisalexander.github.io/gc/
 
@@ -10,7 +10,7 @@ Live: https://curtisalexander.github.io/gc/
 - Multiple functions, color-coded
 - Pan (drag) and zoom (scroll); standard / square window presets
 - Trace mode — hover to read off `(x, y)` on the first function
-- Numerical zero finder with asymptote rejection
+- Sampled zero finder for sign-change and tangent-root candidates, with discontinuity heuristics
 - Implicit multiplication (`2x`, `3sin(x)`, `(x-1)(x+1)`) and TI-style power
   precedence (`-3^2 = -9`, right-associative `2^3^2 = 512`)
 
@@ -22,7 +22,7 @@ Live: https://curtisalexander.github.io/gc/
 
 **Statistics**
 - 1-variable summary stats (mean, sample/population stddev, quartiles, IQR)
-- Linear, quadratic, exponential regression with r²
+- Linear regression with r and r²; quadratic and exponential regression
 - Normal CDF and inverse normal
 - Sort / cumulative sum / first differences
 
@@ -30,6 +30,82 @@ Live: https://curtisalexander.github.io/gc/
 - Up to 5×5: add, subtract, multiply, scalar multiply
 - Determinant, transpose, trace
 - Inverse and reduced row-echelon form
+
+## Using GraphCalc
+
+GraphCalc starts with examples in each tool so you can see the expected input
+shape. Replace those values with your own; invalid or missing values are reported
+instead of being silently ignored or changed to zero.
+
+### Graphing
+
+Enter an expression in `x`, such as:
+
+```text
+sin(x)
+(x-1)(x+1)
+e^(-x^2/2)
+```
+
+Graph expressions always use **radians**. Both `2*x` and implicit multiplication
+such as `2x`, `3sin(x)`, and `(x-1)(x+1)` are accepted. Use the `?` button for
+the complete syntax guide. Drag with a mouse, pen, or finger to pan; use the
+wheel or the Zoom buttons to zoom. With the graph focused, arrow keys pan,
+`+`/`-` zoom, and `T` toggles trace.
+
+The zero finder is numerical and sampling-based. It detects sampled sign changes
+and many tangent-root candidates, but no finite sampler can guarantee every root
+of an arbitrary function. Closely spaced roots may be missed, and discontinuity
+rejection is heuristic, so a candidate near a discontinuity should be checked.
+“No zeros detected” is not a mathematical proof that none exist.
+
+### Scientific calculator
+
+The calculator starts in **DEG** mode; select **RAD** for radian arguments.
+Examples:
+
+```text
+sin(30)       → 0.5 in DEG mode
+sin(pi/6)     → 0.5 in RAD mode
+nCr(10, 3)    → 120
+2.5 EE -4     → 0.00025
+```
+
+`2ND` applies to the next key only. `ANS` inserts the previous successful
+answer. `%` means divide the preceding value by 100, so `50% = 0.5` and
+`200*10% = 20`; it does **not** implement the relative-percent convention where
+`200+10%` means 220. Supported keyboard keys are digits, `+ - * / . ^ ( ) ,`,
+Enter/`=`, Backspace, and Escape.
+
+### Statistics and distributions
+
+Lists accept finite numbers separated by commas, spaces, semicolons, or newlines.
+Every token must be valid. Regression X and Y lists must have the same number of
+entries, in matching order.
+
+- `Sx` is sample standard deviation (denominator `n-1`) and is undefined for one
+  value; `σx` is population standard deviation (denominator `n`).
+- Q1 and Q3 use the exclusive-median convention: for odd-sized datasets, the
+  overall median is excluded from both halves.
+- Exponential regression fits `ln(y) = ln(a) + bx`, so all Y values must be
+  positive and residuals are minimized in log space.
+- `normalcdf` takes lower bound, upper bound, mean, and a positive standard
+  deviation.
+- `invNorm` takes a left-tail probability strictly between 0 and 1, mean, and a
+  positive standard deviation.
+
+### Matrices
+
+Matrix dimensions must be whole numbers from 1 through 5. Every visible cell is
+required and must contain a finite number. `A+B` and `A−B` require equal shapes;
+`A×B` requires the number of columns of A to equal the number of rows of B;
+determinant, inverse, and trace require a square A. Enter `k` in the Scalar field
+before selecting `kA`.
+
+Results use significant-digit formatting and scientific notation where needed.
+Calculations use JavaScript's IEEE-754 double-precision arithmetic, so ordinary
+floating-point limits still apply; displayed digits should not be interpreted as
+arbitrary-precision guarantees.
 
 ## Project layout
 
@@ -82,13 +158,11 @@ the browser binary (~90 MB).
 
 Two layers:
 
-- **Unit tests** (`tests/`, vitest, ~117 tests): cover the math modules in
-  isolation. Fast (~250ms).
-- **End-to-end tests** (`e2e/`, Playwright): boot Vite, drive each tab in a
-  headless browser, and snap screenshots into `e2e/screenshots/`. Doubles as
-  smoke tests — assertions check that operations produce the expected result
-  in the rendered DOM, and `pageerror`/console-error listeners fail the test
-  on any uncaught script error.
+- **Unit tests** (`tests/`, vitest): cover the math modules in isolation.
+- **End-to-end tests** (`e2e/`, Playwright): boot Vite, drive each tab at desktop
+  and mobile sizes, check happy paths and invalid-input behavior, exercise
+  keyboard semantics, and snap screenshots into `e2e/screenshots/`. Uncaught
+  page and console errors fail the suite.
 
 Unit-test highlights:
 

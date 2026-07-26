@@ -78,7 +78,7 @@ describe('Calculator', () => {
     const c = new Calculator();
     c.pressOp('+'); c.pressOp('+');
     c.equals();
-    expect(c.snapshot().result).toBe('Error');
+    expect(c.snapshot().result).toBe('Invalid expression');
   });
 
   it('factorial workflow', () => {

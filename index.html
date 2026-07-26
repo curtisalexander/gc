@@ -10,23 +10,23 @@
 
 <header>
   <div class="logo">Graph<span>Calc</span></div>
-  <div class="tabs">
-    <button class="tab active" data-tab="graph">Graph</button>
-    <button class="tab" data-tab="calc">Calc</button>
-    <button class="tab" data-tab="stats">Stats</button>
-    <button class="tab" data-tab="matrix">Matrix</button>
+  <div class="tabs" role="tablist" aria-label="Calculator tools">
+    <button class="tab active" id="tab-graph" data-tab="graph" role="tab" aria-selected="true" aria-controls="view-graph">Graph</button>
+    <button class="tab" id="tab-calc" data-tab="calc" role="tab" aria-selected="false" aria-controls="view-calc">Calc</button>
+    <button class="tab" id="tab-stats" data-tab="stats" role="tab" aria-selected="false" aria-controls="view-stats">Stats</button>
+    <button class="tab" id="tab-matrix" data-tab="matrix" role="tab" aria-selected="false" aria-controls="view-matrix">Matrix</button>
   </div>
 </header>
 
 <div class="main">
 
   <!-- GRAPHING VIEW -->
-  <div id="view-graph" class="panel-view active">
+  <div id="view-graph" class="panel-view active" role="tabpanel" aria-labelledby="tab-graph">
     <div class="graph-sidebar">
       <div class="sidebar-section">
         <div class="sidebar-label" style="display:flex;justify-content:space-between;align-items:center;">
           <span>Functions</span>
-          <button class="help-btn" id="helpBtn" title="Show syntax guide">?</button>
+          <button class="help-btn" id="helpBtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="syntaxHelp" aria-label="Open function syntax help">?</button>
         </div>
         <div class="fn-list" id="fnList"></div>
         <button class="add-fn-btn" id="addFnBtn">+ Add Function</button>
@@ -34,11 +34,12 @@
       <div class="sidebar-section">
         <div class="sidebar-label">Window</div>
         <div class="range-grid">
-          <div class="range-field"><label>Xmin</label><input type="number" id="xmin" value="-10"></div>
-          <div class="range-field"><label>Xmax</label><input type="number" id="xmax" value="10"></div>
-          <div class="range-field"><label>Ymin</label><input type="number" id="ymin" value="-10"></div>
-          <div class="range-field"><label>Ymax</label><input type="number" id="ymax" value="10"></div>
+          <div class="range-field"><label for="xmin">X minimum</label><input type="number" id="xmin" value="-10"></div>
+          <div class="range-field"><label for="xmax">X maximum</label><input type="number" id="xmax" value="10"></div>
+          <div class="range-field"><label for="ymin">Y minimum</label><input type="number" id="ymin" value="-10"></div>
+          <div class="range-field"><label for="ymax">Y maximum</label><input type="number" id="ymax" value="10"></div>
         </div>
+        <div class="inline-message" id="windowError" role="alert"></div>
       </div>
       <div class="sidebar-section">
         <div class="sidebar-label">View</div>
@@ -53,17 +54,17 @@
       </div>
       <div class="sidebar-section" style="flex:1;overflow-y:auto;">
         <div class="sidebar-label">Coordinates</div>
-        <div class="stats-box" id="coordBox">Hover over graph</div>
+        <div class="stats-box" id="coordBox" role="status" aria-live="polite">Point at the graph for coordinates</div>
       </div>
     </div>
     <div class="graph-area">
-      <canvas id="graphCanvas"></canvas>
-      <div class="graph-overlay" id="graphOverlay">Scroll to zoom · Drag to pan</div>
-      <div class="trace-info" id="traceInfo" style="display:none;"></div>
-      <div class="syntax-help" id="syntaxHelp" style="display:none;">
+      <canvas id="graphCanvas" tabindex="0" aria-label="Function graph. Use arrow keys to pan, plus and minus to zoom, and T to toggle trace.">Your browser does not support the graph canvas.</canvas>
+      <div class="graph-overlay" id="graphOverlay">Wheel or +/− to zoom · Drag or arrows to pan</div>
+      <div class="trace-info" id="traceInfo" role="status" aria-live="polite" style="display:none;"></div>
+      <div class="syntax-help" id="syntaxHelp" role="dialog" aria-labelledby="syntaxTitle" aria-hidden="true" style="display:none;">
         <div class="syntax-head">
-          <span>Function Syntax</span>
-          <button class="close-btn" id="helpCloseBtn">×</button>
+          <span id="syntaxTitle">Function Syntax</span>
+          <button class="close-btn" id="helpCloseBtn" aria-label="Close function syntax help">×</button>
         </div>
         <div class="syntax-body">
           <div class="syntax-group">
@@ -77,7 +78,7 @@
           <div class="syntax-group">
             <div class="syntax-title">Roots &amp; Absolute Value</div>
             <div class="syntax-row"><code>sqrt(x)</code><span>square root of x</span></div>
-            <div class="syntax-row"><code>x^(1/3)</code><span>cube root of x</span></div>
+            <div class="syntax-row"><code>cbrt(x)</code><span>real cube root (including negative x)</span></div>
             <div class="syntax-row"><code>abs(x)</code><span>absolute value (not <code>|x|</code>)</span></div>
           </div>
           <div class="syntax-group">
@@ -107,7 +108,7 @@
             <div class="syntax-row"><code>sqrt(25-x^2)</code><span>upper half of circle r=5</span></div>
           </div>
           <div class="syntax-note">
-            <strong>Tip:</strong> Use <code>x</code> as the variable. Multiplication between a number and variable/function/parenthesis is implicit — write <code>2x</code> or <code>3sin(x)</code>, not <code>2*x</code>.
+            <strong>Tip:</strong> Use <code>x</code> as the variable. Both explicit multiplication (<code>2*x</code>) and implicit multiplication (<code>2x</code> or <code>3sin(x)</code>) are supported.
           </div>
         </div>
       </div>
@@ -115,60 +116,62 @@
   </div>
 
   <!-- CALCULATOR VIEW -->
-  <div id="view-calc" class="panel-view">
+  <div id="view-calc" class="panel-view" role="tabpanel" aria-labelledby="tab-calc">
     <div class="calc-shell" id="calcShell">
       <div class="calc-display">
-        <div class="calc-history" id="calcHistory"></div>
-        <div class="calc-expr" id="calcExpr"></div>
-        <div class="calc-result" id="calcResult">0</div>
+        <div class="calc-history" id="calcHistory" aria-label="Previous calculation"></div>
+        <div class="calc-expr" id="calcExpr" aria-label="Current expression"></div>
+        <div class="calc-result" id="calcResult" role="status" aria-live="polite" aria-label="Calculator result">0</div>
       </div>
       <div class="mode-bar">
-        <button class="mode-btn active" id="modeDeg">DEG</button>
-        <button class="mode-btn" id="modeRad">RAD</button>
-        <button class="mode-btn" id="shiftBtn">2ND</button>
+        <button class="mode-btn active" id="modeDeg" aria-pressed="true">DEG</button>
+        <button class="mode-btn" id="modeRad" aria-pressed="false">RAD</button>
+        <button class="mode-btn" id="shiftBtn" aria-pressed="false" aria-label="Second functions">2ND</button>
       </div>
       <div class="calc-keys" id="calcKeys"></div>
     </div>
   </div>
 
   <!-- STATISTICS VIEW -->
-  <div id="view-stats" class="panel-view">
+  <div id="view-stats" class="panel-view" role="tabpanel" aria-labelledby="tab-stats">
     <div class="stats-header">Statistics</div>
     <div class="stats-layout">
       <div class="stats-card">
         <div class="card-title">1-Variable Stats</div>
-        <div class="sidebar-label" style="margin-bottom:4px;">Enter data (comma or space separated)</div>
+        <label class="sidebar-label field-label" for="statData1">Data (comma, space, or semicolon separated)</label>
         <textarea class="data-input" id="statData1" placeholder="e.g. 2, 4, 6, 8, 10">2, 4, 6, 8, 10</textarea>
         <button class="action-btn" id="calc1VarBtn">Calculate</button>
-        <div class="stat-results" id="stat1Results"></div>
+        <div class="stat-results" id="stat1Results" role="status" aria-live="polite"></div>
       </div>
       <div class="stats-card">
         <div class="card-title">2-Variable Regression</div>
-        <div class="sidebar-label" style="margin-bottom:4px;">X values</div>
+        <label class="sidebar-label field-label" for="statDataX">X values</label>
         <textarea class="data-input" id="statDataX" placeholder="1, 2, 3, 4, 5" style="min-height:50px;">1, 2, 3, 4, 5</textarea>
-        <div class="sidebar-label" style="margin-bottom:4px;margin-top:8px;">Y values</div>
+        <label class="sidebar-label field-label" for="statDataY" style="margin-top:8px;">Y values</label>
         <textarea class="data-input" id="statDataY" placeholder="2, 4, 6, 8, 10" style="min-height:50px;">2.1, 4.0, 6.3, 7.9, 10.2</textarea>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
           <button class="action-btn" id="linRegBtn">LinReg</button>
           <button class="action-btn sec" id="quadRegBtn">QuadReg</button>
           <button class="action-btn sec" id="expRegBtn">ExpReg</button>
         </div>
-        <div id="regResult"></div>
+        <div id="regResult" role="status" aria-live="polite"></div>
       </div>
       <div class="stats-card">
         <div class="card-title">Distributions</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
-          <div class="range-field"><label>Mean (μ)</label><input type="number" id="distMu" value="0"></div>
-          <div class="range-field"><label>Std Dev (σ)</label><input type="number" id="distSigma" value="1"></div>
-          <div class="range-field"><label>Lower / area</label><input type="number" id="distLow" value="-1"></div>
-          <div class="range-field"><label>Upper</label><input type="number" id="distHigh" value="1"></div>
+          <div class="range-field"><label for="distMu">Mean (μ)</label><input type="number" id="distMu" value="0"></div>
+          <div class="range-field"><label for="distSigma">Std dev (σ &gt; 0)</label><input type="number" id="distSigma" value="1" min="0" step="any"></div>
+          <div class="range-field"><label for="distLow">CDF lower bound</label><input type="number" id="distLow" value="-1"></div>
+          <div class="range-field"><label for="distHigh">CDF upper bound</label><input type="number" id="distHigh" value="1"></div>
+          <div class="range-field full-field"><label for="distProb">Inverse-normal left-tail probability (0–1)</label><input type="number" id="distProb" value="0.95" min="0" max="1" step="any"></div>
         </div>
         <button class="action-btn" id="normCdfBtn">normalcdf</button>
         <button class="action-btn sec" style="margin-left:6px;" id="invNormBtn">invNorm</button>
-        <div id="distResult" style="font-family:var(--mono);font-size:14px;color:var(--green);margin-top:10px;white-space:pre-wrap;"></div>
+        <div id="distResult" role="status" aria-live="polite" style="font-family:var(--mono);font-size:14px;color:var(--green);margin-top:10px;white-space:pre-wrap;"></div>
       </div>
       <div class="stats-card">
         <div class="card-title">Sort &amp; List Operations</div>
+        <label class="sidebar-label field-label" for="listData">Data list</label>
         <textarea class="data-input" id="listData" placeholder="Enter data..." style="min-height:60px;">3, 1, 4, 1, 5, 9, 2, 6</textarea>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
           <button class="action-btn sec" id="sortAscBtn">Sort ↑</button>
@@ -176,21 +179,21 @@
           <button class="action-btn sec" id="cumSumBtn">cumSum</button>
           <button class="action-btn sec" id="deltaBtn">ΔList</button>
         </div>
-        <div id="listResult" style="font-family:var(--mono);font-size:13px;color:var(--accent);margin-top:10px;word-break:break-all;"></div>
+        <div id="listResult" role="status" aria-live="polite" style="font-family:var(--mono);font-size:13px;color:var(--accent);margin-top:10px;word-break:break-all;"></div>
       </div>
     </div>
   </div>
 
   <!-- MATRIX VIEW -->
-  <div id="view-matrix" class="panel-view">
+  <div id="view-matrix" class="panel-view" role="tabpanel" aria-labelledby="tab-matrix">
     <div class="stats-header">Matrix Operations</div>
     <div class="matrix-layout">
       <div class="matrix-card">
         <div class="card-title">Matrix A</div>
         <div class="matrix-size">
-          <span>Rows:</span>
+          <label for="aRows">Rows:</label>
           <input type="number" id="aRows" value="2" min="1" max="5">
-          <span>Cols:</span>
+          <label for="aCols">Cols:</label>
           <input type="number" id="aCols" value="2" min="1" max="5">
         </div>
         <div class="matrix-grid" id="matrixA"></div>
@@ -198,15 +201,16 @@
       <div class="matrix-card">
         <div class="card-title">Matrix B</div>
         <div class="matrix-size">
-          <span>Rows:</span>
+          <label for="bRows">Rows:</label>
           <input type="number" id="bRows" value="2" min="1" max="5">
-          <span>Cols:</span>
+          <label for="bCols">Cols:</label>
           <input type="number" id="bCols" value="2" min="1" max="5">
         </div>
         <div class="matrix-grid" id="matrixB"></div>
       </div>
       <div class="matrix-card">
         <div class="card-title">Result</div>
+        <div class="range-field scalar-field"><label for="matrixScalar">Scalar k</label><input type="number" id="matrixScalar" value="2"></div>
         <div class="matrix-ops">
           <button class="action-btn" style="margin:0;" data-matop="add">A+B</button>
           <button class="action-btn sec" style="margin:0;" data-matop="sub">A−B</button>
@@ -218,7 +222,7 @@
           <button class="action-btn sec" style="margin:0;" data-matop="rref">rref(A)</button>
           <button class="action-btn sec" style="margin:0;" data-matop="trace">tr(A)</button>
         </div>
-        <div class="matrix-result" id="matrixResult">Select an operation</div>
+        <div class="matrix-result" id="matrixResult" role="status" aria-live="polite">Select an operation</div>
       </div>
     </div>
   </div>

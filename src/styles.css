@@ -17,6 +17,7 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
+:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 html, body {
   height: 100%;
 }
@@ -220,7 +221,7 @@ header {
 
 .fn-list { display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; }
 .fn-row { display: flex; align-items: center; gap: 6px; }
-.fn-color { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; cursor: pointer; }
+.fn-color { width: 14px; height: 14px; border: 0; padding: 0; border-radius: 50%; flex-shrink: 0; cursor: pointer; }
 .fn-input {
   flex: 1;
   background: var(--panel2);
@@ -318,6 +319,7 @@ canvas#graphCanvas {
   width: 100%;
   height: 100%;
   cursor: crosshair;
+  touch-action: none;
 }
 .graph-overlay {
   position: absolute;
@@ -449,8 +451,8 @@ canvas#graphCanvas {
   top: 2px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 9px;
-  color: var(--accent3);
+  font-size: 10px;
+  color: #c4b5fd;
   letter-spacing: 0;
   font-family: var(--mono);
   white-space: nowrap;
@@ -482,6 +484,16 @@ canvas#graphCanvas {
   border: 1px solid var(--border);
   padding: 14px;
 }
+.field-label { display: block; margin-bottom: 4px; }
+.full-field { grid-column: 1 / -1; }
+.inline-message,
+.error-message {
+  color: #ff8f8f !important;
+  font-family: var(--mono);
+  font-size: 13px;
+  margin-top: 7px;
+  white-space: normal;
+}
 .card-title {
   font-size: 12px;
   letter-spacing: 2px;
@@ -512,7 +524,7 @@ canvas#graphCanvas {
   background: var(--panel2);
   padding: 8px 10px;
 }
-.stat-label { font-size: 11px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; }
+.stat-label { font-size: 12px; color: #a9bad7; letter-spacing: 1px; text-transform: uppercase; }
 .stat-val { font-family: var(--mono); font-size: 17px; color: var(--accent); }
 .action-btn {
   padding: 9px 16px;
@@ -595,6 +607,7 @@ canvas#graphCanvas {
   gap: 6px;
   margin-bottom: 10px;
 }
+.scalar-field { margin-bottom: 10px; max-width: 180px; }
 .matrix-result {
   font-family: var(--mono);
   font-size: 14px;
@@ -613,6 +626,50 @@ canvas#graphCanvas {
 ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
 
 @media (max-width: 700px) {
-  .graph-sidebar { width: 200px; }
+  body { overflow: auto; min-width: 0; }
+  header { padding: 7px 8px; flex-wrap: wrap; gap: 6px; }
+  .logo { font-size: 14px; letter-spacing: 2px; }
+  .tabs { flex: 1; justify-content: flex-end; min-width: 250px; }
+  .tab { padding: 6px 8px; font-size: 12px; }
+  .main { min-height: calc(100vh - 48px); overflow: visible; }
+  #view-graph { flex-direction: column; min-height: 760px; }
+  .graph-sidebar {
+    width: 100%;
+    max-height: none;
+    flex-shrink: 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+    overflow: visible;
+  }
+  .graph-sidebar .sidebar-section { flex-shrink: 0; }
+  .graph-controls { display: grid; grid-template-columns: repeat(2, 1fr); }
+  .ctrl-btn { min-width: 0; white-space: nowrap; }
+  .graph-area { min-height: 420px; }
+  .graph-overlay {
+    font-size: 11px;
+    background: rgba(13, 19, 38, 0.86);
+    padding: 4px 6px;
+  }
+  .calc-shell { width: min(460px, 100%); }
+  #view-calc { padding: 8px; align-items: flex-start; overflow-y: auto; }
+  .calc-display { padding: 14px 12px 8px; min-height: 115px; }
+  .calc-result { font-size: 30px; }
+  .calc-keys { padding: 8px; gap: 5px; }
+  .key { padding: 14px 2px; font-size: 15px; }
+  #view-stats, #view-matrix { padding: 12px; }
   .stats-layout, .matrix-layout { grid-template-columns: 1fr; }
+  .matrix-result { overflow-x: auto; max-width: calc(100vw - 52px); }
+}
+
+@media (pointer: coarse) {
+  .help-btn { width: 44px; height: 44px; border-radius: 0; }
+  .fn-color { width: 44px; height: 44px; }
+  .fn-remove { min-width: 44px; min-height: 44px; }
+}
+
+@media (max-width: 430px) {
+  header { justify-content: center; }
+  .logo { width: 100%; text-align: center; }
+  .tabs { min-width: 0; width: 100%; justify-content: center; }
+  .tab { flex: 1; }
 }

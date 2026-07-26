@@ -75,13 +75,24 @@ describe('matDet', () => {
   it('singular is 0', () => {
     expect(matDet([[1, 2], [2, 4]])).toBe(0);
   });
+  it('handles mixed-scale rows without elimination underflow', () => {
+    expect(matDet([[1e200, 1e200], [1e-200, 2e-200]])).toBeCloseTo(1, 12);
+  });
 });
 
 describe('matInv', () => {
+  it('inverts uniformly tiny nonsingular matrices', () => {
+    expect(matInv([[1e-13]])).toEqual([[1e13]]);
+  });
   it('inverts 2x2', () => {
     const A: Matrix = [[4, 7], [2, 6]];
     const inv = matInv(A)!;
     closeMat(inv, [[0.6, -0.7], [-0.2, 0.4]]);
+  });
+  it('inverts mixed-scale matrices', () => {
+    const A = [[1e200, 1e200], [1e-200, 2e-200]];
+    const inverse = matInv(A)!;
+    closeMat(matMul(A, inverse), [[1, 0], [0, 1]], 1e-9);
   });
   it('A * A⁻¹ = I for 3x3', () => {
     const A: Matrix = [[1, 2, 3], [0, 1, 4], [5, 6, 0]];
@@ -96,6 +107,9 @@ describe('matInv', () => {
 });
 
 describe('matRREF', () => {
+  it('reduces uniformly tiny matrices', () => {
+    expect(matRREF([[1e-13]])).toEqual([[1]]);
+  });
   it('already identity stays identity', () => {
     expect(matRREF([[1, 0], [0, 1]])).toEqual([[1, 0], [0, 1]]);
   });
@@ -118,6 +132,9 @@ describe('matRREF', () => {
 });
 
 describe('showMatrix', () => {
+  it('does not format small finite values as zero', () => {
+    expect(showMatrix([[1e-13]])).toContain('1.00000e-13');
+  });
   it('formats with padding', () => {
     const s = showMatrix([[1, 2], [3, 4]]);
     expect(s).toContain('[');
@@ -127,5 +144,13 @@ describe('showMatrix', () => {
   it('normalizes -0 to 0', () => {
     const s = showMatrix([[-0, 1]]);
     expect(s).not.toContain('-0');
+  });
+});
+
+describe('matrix input validation', () => {
+  it('rejects empty, ragged, and nonfinite matrices', () => {
+    expect(() => matTrans([])).toThrow(/nonempty/);
+    expect(() => matRREF([[1, 2], [3]])).toThrow(/rectangular/);
+    expect(() => matDet([[Infinity]])).toThrow(/finite/);
   });
 });
