@@ -195,8 +195,10 @@ Unit-test highlights:
 Review screenshots are produced as a side-effect of the e2e suite. PNGs land
 in `e2e/screenshots/` (gitignored), one per spec, named `01-graph.png`,
 `02-graph-help.png`, etc. Approved comparison baselines are committed under
-`e2e/quality.spec.ts-snapshots/`; ordinary test runs fail when the rendered UI
-differs beyond the configured tolerance.
+`e2e/quality.spec.ts-snapshots/`. The visual comparisons run in Linux CI, where
+ordinary test runs fail when the rendered UI differs beyond the configured
+tolerance; they are skipped on other operating systems because browser text
+rendering is platform-specific.
 
 ```bash
 # First-time setup (downloads ~90 MB Chromium binary)
@@ -205,7 +207,7 @@ npx playwright install chromium
 # Take all screenshots (also runs the assertions)
 npm run e2e
 
-# Deliberately approve a reviewed visual change
+# Deliberately approve a reviewed visual change (Linux)
 npx playwright test e2e/quality.spec.ts --update-snapshots=all
 
 # Single test by name

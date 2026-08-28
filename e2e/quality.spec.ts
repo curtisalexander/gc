@@ -3,6 +3,9 @@ import { expect, test } from '@playwright/test';
 
 test.beforeEach(async ({ page }) => {
   page.on('pageerror', error => { throw error; });
+  page.on('console', message => {
+    if (message.type() === 'error') throw new Error(`console error: ${message.text()}`);
+  });
   await page.goto('/');
   await page.evaluate(() => document.fonts.ready);
 });
@@ -62,6 +65,7 @@ test.describe('touch interactions', () => {
     await page.locator('#traceBtn').tap();
 
     const canvas = page.locator('#graphCanvas');
+    await canvas.scrollIntoViewIfNeeded();
     const box = await canvas.boundingBox();
     if (!box) throw new Error('Graph canvas has no bounding box');
     const client = await page.context().newCDPSession(page);
@@ -70,15 +74,23 @@ test.describe('touch interactions', () => {
     await client.send('Input.dispatchTouchEvent', {
       type: 'touchStart', touchPoints: [{ ...start, radiusX: 2, radiusY: 2, force: 1 }],
     });
-    await client.send('Input.dispatchTouchEvent', {
-      type: 'touchMove', touchPoints: [{ ...end, radiusX: 2, radiusY: 2, force: 1 }],
-    });
+    for (let step = 1; step <= 4; step++) {
+      const point = {
+        x: start.x + (end.x - start.x) * step / 4,
+        y: start.y + (end.y - start.y) * step / 4,
+      };
+      await client.send('Input.dispatchTouchEvent', {
+        type: 'touchMove', touchPoints: [{ ...point, radiusX: 2, radiusY: 2, force: 1 }],
+      });
+      await page.waitForTimeout(25);
+    }
     await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await expect(page.locator('#xmin')).not.toHaveValue('-10');
   });
 });
 
 test('approved desktop views retain their visual layout', async ({ page }) => {
+  test.skip(process.platform !== 'linux', 'Committed visual baselines are generated on Linux.');
   for (const tab of ['graph', 'calc', 'stats', 'matrix']) {
     await page.locator(`#tab-${tab}`).click();
     await expect(page).toHaveScreenshot(`desktop-${tab}.png`, {
@@ -88,6 +100,7 @@ test('approved desktop views retain their visual layout', async ({ page }) => {
 });
 
 test('approved mobile graph retains its visual layout', async ({ page }) => {
+  test.skip(process.platform !== 'linux', 'Committed visual baselines are generated on Linux.');
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page).toHaveScreenshot('mobile-graph.png', {
     animations: 'disabled', fullPage: true, maxDiffPixelRatio: 0.005,
